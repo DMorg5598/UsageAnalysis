@@ -1,0 +1,227 @@
+---
+title: "Usage Analysis Script"
+output: html_notebook
+---
+
+```{r}
+library(reticulate)
+py_install('pandas')
+py_install('datetime')
+```
+
+```{r}
+library(readr)
+rawusage <- read_csv("rawusage.csv", trim_ws = FALSE)
+
+```
+
+```{python}
+import pandas as pd
+import datetime
+
+usagedf = pd.DataFrame(r.rawusage)
+dropcolumns = ["Home Phone", "Mobile Phone", "City"]
+usagedf.drop(axis='columns',columns=dropcolumns, inplace=True)
+usagedf2 = usagedf.query('Access != "No"')
+usagedf3 = usagedf2.query('Door != "Tanning Bed "')
+tbedusage = usagedf2.query('Door == "Tanning Bed "')
+
+homeclub = []
+homeclub.extend(usagedf3.get('HClub'))
+visits = []
+visits.extend(usagedf3.get('Date'))
+fnames = []
+fnames.extend(usagedf3.get('FirstName'))
+lnames = []
+lnames.extend(usagedf3.get('LastName'))
+fullnames = []
+
+i = 0
+while i < len(visits):
+  a = fnames[i]
+  b = lnames[i]
+  c = a + " " + b
+  fullnames.append(c)
+  i += 1
+
+a = 0
+b = 0
+c = 0
+
+days = []
+months = []
+years = []
+hours = []
+dows = []
+dayhalf = []
+
+for x in visits:
+  txt = x
+  broken1 = txt.partition("/")
+  a = int(broken1[0])
+  months.append(a)
+  txt = broken1[2]
+  broken2 = txt.partition("/")
+  b = int(broken2[0])
+  days.append(b)
+  txt = broken2[2]
+  broken3 = txt.partition(" ")
+  c = int(broken3[0])
+  years.append(c)
+  txt = broken3[2]
+  broken4 = txt.partition(":")
+  d = int(broken4[0])
+  hours.append(d)
+  e = broken4[2]
+  if "AM" in e:
+    dayhalf.append(1)
+  elif "PM" in e:
+    dayhalf.append(2)
+  
+i = 0
+while i < len(hours):
+  if dayhalf[i] == 1 and hours[i] == 12:
+    hours[i] = 0
+  elif dayhalf[i] == 2 and hours[i] != 12:
+    hours[i] += 12
+  i += 1
+
+i = 0
+while i < len(visits):
+  a = years[i]
+  b = months[i]
+  c = days[i]
+  d = hours[i]
+  x = datetime.datetime(a, b, c, d)
+  y = x.strftime("%A")
+  dows.append(y)
+  i += 1
+
+data = {
+  'name':fullnames,
+  'homeclub':homeclub,
+  'month':months,
+  'day':days,
+  'year':years,
+  'hour':hours,
+  'dayofweek':dows
+}
+visitdateframe = pd.DataFrame(data)
+totalvisits = len(visits)
+
+```
+Save the dataframe as a CSV
+```{r}
+library(reticulate)
+write.csv(py$visitdateframe, file = "visitdatesinformation.csv")
+```
+Transform the dataframe into a graph using GGplot2
+```{r}
+library(reticulate)
+library(ggplot2)
+ggplot(py$visitdateframe, aes(hour))+geom_bar()
+ggplot(py$visitdateframe, aes(day))+geom_bar()
+ggplot(py$visitdateframe, aes(dayofweek))+geom_bar()
+```
+```{r}
+memberages <- read.csv("memberages.csv")
+```
+
+
+```{python}
+import pandas as pd
+memberages = pd.DataFrame(r.memberages)
+
+membersonly = visitdateframe.query('homeclub == "ALLEN TX 2, TX"')
+
+
+namesone = []
+namesone.extend(memberages.get('membername'))
+
+i = 0
+while i < len(namesone):
+  txt = namesone[i]
+  y = txt.upper()
+  namesone[i] = y
+  i += 1
+
+namestwo = []
+namestwo.extend(membersonly.get('name'))
+ages = []
+ages.extend(memberages.get('memberage'))
+
+agecolumn = []
+
+i = 0
+while i < len(namestwo):
+  agecolumn.append(0)
+  i += 1
+
+j = 0
+ while j < len(namesone):
+   namecheck = namesone[j]
+   agecheck = ages[j]
+   i = 0
+   while i < len(namestwo):
+     if namecheck == namestwo[i]:
+       agecolumn[i] = agecheck
+     i += 1
+   j += 1
+
+data = {
+  'name':membersonly.get('name'),
+  'homeclub':membersonly.get('homeclub'),
+  'month':membersonly.get('month'),
+  'day':membersonly.get('day'),
+  'year':membersonly.get('year'),
+  'hour':membersonly.get('hour'),
+  'dayofweek':membersonly.get('dayofweek'),
+  'age':agecolumn
+}
+
+membersonly3 = pd.DataFrame(data)
+agevisits = membersonly3.query('age > 15')
+
+visithours = []
+visithours.extend(agevisits.get('hour'))
+ages.clear()
+ages.extend(agevisits.get('age'))
+houraverages = []
+dayhours = []
+
+j = 0
+while j < 24:
+  sumages = 0
+  agecount = 0
+  i = 0
+  while i < len(visithours):
+    if visithours[i] == j:
+      sumages += ages[i]
+      agecount += 1
+    else:
+      sumages += 0
+    i += 1
+  y = sumages/agecount
+  houraverages.append(y)
+  dayhours.append(j)
+  j += 1
+
+data = {
+  'hour':dayhours,
+  'avgage':houraverages
+}
+
+avgagevisits = pd.DataFrame(data)
+
+```
+
+```{r}
+library(reticulate)
+library(ggplot2)
+ggplot(py$agevisits, aes(x=hour, y = age))+geom_point()
+ggplot(py$agevisits, aes(x=hour, y = age))+geom_smooth()
+ggplot(py$avgagevisits, aes(x=hour, y=avgage))+geom_col()
+
+
+```
+
